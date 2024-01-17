@@ -35,7 +35,7 @@ class CondaPythonOperator(ExternalPythonOperator):
 
     def execute_callable(self):
         templating_env = Environment(
-            loader=PackageLoader("la_airflow_extensions.operators"),
+            loader=PackageLoader("airflow_conda_operator"),
             autoescape=select_autoescape(),  # todo: check this
         )
         python_stub_script = templating_env.get_template("conda_python_env.sh").render(
