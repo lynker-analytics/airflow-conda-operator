@@ -1,6 +1,7 @@
 import os
 import tempfile
 from pathlib import Path
+from typing import Sequence
 
 from airflow.operators.python import ExternalPythonOperator
 from jinja2 import Environment, PackageLoader, select_autoescape
@@ -10,6 +11,8 @@ class CondaPythonOperator(ExternalPythonOperator):
     """
     Run a function in a mamba/conda env.
     """
+
+    template_fields: Sequence[str] = tuple({"conda_env", "conda_root_prefix"} | set(ExternalPythonOperator.template_fields))
 
     def __init__(
         self,
