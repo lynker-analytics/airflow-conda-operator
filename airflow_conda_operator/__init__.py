@@ -1,1 +1,1 @@
-from conda_operator import CondaPythonOperator
+from .conda_operator import CondaPythonOperator
