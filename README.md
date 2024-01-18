@@ -1,6 +1,6 @@
 # Airflow Conda Operator
 
-Fully initialize a conda environment and start a python script.
+Runs a Python function inside a fully initialized  conda/mamba environment.
 
 ## Background
 
