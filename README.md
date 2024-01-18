@@ -15,11 +15,21 @@ variables like `GDAL_DATA`, `GDAL_DRIVER_PATH`, `PROJ_DATA`, `PROJ_NETWORK`, for
 
 ## Usage
 
+### Install
+
+Please install from github:
+
+```bash
+pip install git+ssh://git@github.com/lynker-analytics/airflow-conda-operator.git
+```
+
+(Packaging is on the ToDo list...)
+
 ### Example
 
 Create an environment with all requirements for the data processing:
 
-```
+```bash
 mamba create -n satellite-data python rasterio
 ```
 
