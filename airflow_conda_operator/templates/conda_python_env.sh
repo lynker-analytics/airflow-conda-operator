@@ -4,6 +4,7 @@ set -euo pipefail
 # detect VIRTUAL_ENV, then deactivate venv first
 # a little counterintuitive: first load the activate script with
 # the deactivate command removing all necessary settings
+test -v VIRTUAL_ENV && \
 test -d "$VIRTUAL_ENV" && \
 source $VIRTUAL_ENV/bin/activate && \
 deactivate
