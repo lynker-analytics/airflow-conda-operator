@@ -1,2 +1,4 @@
 __pycache__
 *.pyc
+
+airflow_conda_operator.egg-info/
