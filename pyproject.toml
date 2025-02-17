@@ -1,3 +1,25 @@
+[project]
+name = "airflow-conda-operator"
+version = "0.2.0"
+authors = [
+    {name="Achim Gädke", email="Achim.Gaedke@lynker-analytics.com"},
+]
+description = "Conda/Mamba Python Operator"
+readme = "README.md"
+dependencies = [
+    "apache-airflow>=2.10.0",
+    "jinja2",
+]
+
+[project.urls]
+"Source Code" = "https://github.com/lynker-analytics/airflow-conda-operator"
+
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[project.entry-points."apache_airflow_provider"]
+provider_info = "airflow_conda_operator.conda_task:get_provider_info"
+
+[tool.setuptools.package-data]
+airflow_conda_operator = ["templates/*.sh",]
