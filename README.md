@@ -76,6 +76,13 @@ CondaPythonOperator(
 
 Works with `conda` and `mamba`, requires `bash`.
 
+Some OS distributions do not allow executable files in `/tmp`.
+If you experience `PermissionDenied` errors using the operator,
+specify another directory to create the temporary stub bash scripts:
+
+Set the environment variable `TMPDIR` when starting the scheduler and worker
+processes (see [mkstemp](https://docs.python.org/3/library/tempfile.html#tempfile.mkstemp)).
+
 ### Implementation
 
 This implementation is "bolted-on" onto the `ExternalPython` operator
