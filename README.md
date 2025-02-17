@@ -1,23 +1,23 @@
-# Airflow Conda Operator
+# Airflow Task and Operator for Conda/Mamba
 
-Runs a Python function inside a fully initialized  conda/mamba environment.
+Runs a Python function inside a fully initialized conda/mamba environment.
 
 ## Background
 
-Conda/Mamba is popular for python extensions, which need a bit more than one
-or the other system library. More complex binary packages require additional
-environment variables set up than "just" the PYTHONPATH - often implied in the interpeter path.
+The Conda/Mamba execution environment manager is popular with python
+extensions, which have more dependencies than common system libraries.
+Some of the complex binary packages require additional environment variables
+set up, not only the path to the python executable and a custom `PYTHONPATH`.
 
-Using the `activate` scripts supplied by the conda packages
-(see `<env-prefix>/etc/conda/activate.d/`) will also set up essential environment
-variables like `GDAL_DATA`, `GDAL_DRIVER_PATH`, `PROJ_DATA`, `PROJ_NETWORK`, for e.g.
-`gdal` based packages (`rasterio`, `geopandas`).
+The operator/task provided by this project uses the `conda activate` scripts
+supplied by the conda packages (see `<env-prefix>/etc/conda/activate.d/`).
+Thus it will ensure the correct setup of the essential environment variables
+like `GDAL_DATA`, `GDAL_DRIVER_PATH`, `PROJ_DATA`, `PROJ_NETWORK`, for e.g.
+spatial python packages (`rasterio`, `geopandas`).
 
-## Usage
+## Install
 
-### Install
-
-Please install from github:
+Please install from source/github:
 
 ```bash
 pip install git+ssh://git@github.com/lynker-analytics/airflow-conda-operator.git
@@ -25,15 +25,31 @@ pip install git+ssh://git@github.com/lynker-analytics/airflow-conda-operator.git
 
 (Packaging is on the ToDo list...)
 
-### Example
+## Task Example
 
-Create an environment with all requirements for the data processing:
+Create an environment with all requirements for the task/s:
 
 ```bash
 mamba create -n satellite-data python rasterio
 ```
 
-Use the operator in your airflow DAG file:
+Use the operator in your Airflow DAG file:
+
+```python3
+from airflow.decorators import task
+
+@task.conda(conda_env="satellite-data", expect_airflow=False)
+def load_geotiffs(data_location):
+    # IMPORTANT: all imports inside the function
+    import rasterio
+    with rasterio.open(data_location) as img:
+        # do something with it
+        pass
+```
+
+## Operator Example
+
+Use the operator in your Airflow DAG file:
 
 ```python3
 from airflow_conda_operator import CondaPythonOperator
@@ -58,7 +74,7 @@ CondaPythonOperator(
 
 ### Requirements
 
-Works with conda/mamba, requires `bash`.
+Works with `conda` and `mamba`, requires `bash`.
 
 ### Implementation
 
