@@ -76,7 +76,6 @@ class CondaPythonOperator(ExternalPythonOperator):
         try:
             return subprocess.check_output(
                 [python_stub, "-c", "import sys; print(sys.executable)"],
-                executable=python_stub,
                 text=True,
             ).strip()
         finally:
