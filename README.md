@@ -2,6 +2,8 @@
 
 Runs a Python function inside a fully initialized conda/mamba environment.
 
+Compatible with airflow V2 and V3.
+
 ## Background
 
 The Conda/Mamba execution environment manager is popular with python
@@ -9,8 +11,9 @@ extensions, which have more dependencies than common system libraries.
 Some of the complex binary packages require additional environment variables
 set up, not only the path to the python executable and a custom `PYTHONPATH`.
 
-The operator/task provided by this project uses the `conda activate` scripts
-supplied by the conda packages (see `<env-prefix>/etc/conda/activate.d/`).
+The operator/task provided by this project uses the `conda activate` [scripts
+supplied by the conda packages](https://conda-forge.org/docs/maintainer/adding_pkgs/#activate-scripts)
+(see `<env-prefix>/etc/conda/activate.d/`).
 Thus it will ensure the correct setup of the essential environment variables
 like `GDAL_DATA`, `GDAL_DRIVER_PATH`, `PROJ_DATA`, `PROJ_NETWORK`, for e.g.
 spatial python packages (`rasterio`, `geopandas`).

@@ -1,10 +1,16 @@
 import os
+import subprocess
 import tempfile
 from pathlib import Path
-import subprocess
-from typing import Sequence, Any
+from typing import Any, Sequence
 
-from airflow.operators.python import ExternalPythonOperator
+from airflow.providers.standard.version_compat import AIRFLOW_V_3_0_PLUS
+
+if AIRFLOW_V_3_0_PLUS:
+    from airflow.providers.standard.operators.python import ExternalPythonOperator
+else:
+    from airflow.operators.python import ExternalPythonOperator  # type: ignore[no-redef]
+
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 
@@ -67,7 +73,6 @@ class CondaPythonOperator(ExternalPythonOperator):
             raise
         return python_stub.name
 
-
     def _get_python_path(self) -> str:
         """
         get the full executable path of the python interpreter
@@ -81,7 +86,7 @@ class CondaPythonOperator(ExternalPythonOperator):
         finally:
             os.unlink(python_stub)
 
-    def _execute_python_callable_in_subprocess(self, _) -> (Any | None):
+    def _execute_python_callable_in_subprocess(self, _) -> Any | None:
         python_stub = self._create_python_stub()
         try:
             return super()._execute_python_callable_in_subprocess(python_stub)
