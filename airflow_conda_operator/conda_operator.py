@@ -31,11 +31,16 @@ class CondaPythonOperator(ExternalPythonOperator):
         conda_root_prefix: str | None = None,
         **kwargs,
     ):
-        # todo: alternatively, get this from the output of `conda --json`` field "conda_prefix"
-        if conda_root_prefix is None:
-            conda_root_prefix = Path(os.environ["CONDA_EXE"]).parents[1]
-        else:
+        if conda_root_prefix is not None:
             conda_root_prefix = Path(conda_root_prefix)
+        elif "CONDA_EXE" in os.environ:
+            conda_root_prefix = Path(os.environ["CONDA_EXE"]).parents[1]
+        elif "CONDA_ROOT" in os.environ:
+            conda_root_prefix = Path(os.environ["CONDA_ROOT"])
+        elif "MAMBA_ROOT_PREFIX" in os.environ:
+            conda_root_prefix = Path(os.environ["MAMBA_ROOT_PREFIX"])
+        else:
+            raise ValueError("conda/mamba environment prefix not located")
         if not (conda_root_prefix / "bin" / "activate").is_file():
             raise ValueError(f"`activate` script not found in {conda_root_prefix}")
         self.conda_root_prefix = str(conda_root_prefix)
