@@ -75,9 +75,35 @@ CondaPythonOperator(
 )
 ```
 
+### Environment Specification
+
+If `conda_env` contains a dictionary, it will create (and cache)
+the environment when and where (e.g. on a worker node) required.
+
+The above examples work with
+
+```python
+conda_env={
+    "name": "satellite-data", 
+    "dependencies": [
+        "python",
+        "rasterio",
+        ],
+    }
+```
+
+The dictionary requires "dependencies", optionally allows "name" and "channels",
+just as a conda environment definition file. If no name is specified, it will
+default to `airflow-conda`.
+
+### Environment Caching
+
+The environments are cached on the workers with an LRU cache.
+A maximum of 5 environments are kept for each environment name specified.
+
 ### Requirements
 
-Works with `conda` and `mamba`, requires `bash`.
+Works with `conda` or `mamba`, requires `bash`.
 
 Some OS distributions do not allow executable files in `/tmp`.
 If you experience `PermissionDenied` errors using the operator,
@@ -90,3 +116,11 @@ processes (see [mkstemp](https://docs.python.org/3/library/tempfile.html#tempfil
 
 This implementation is "bolted-on" onto the `ExternalPython` operator
 in the most straight forward way, but it does the trick.
+
+### Development
+
+Unit test based on pytest.
+
+```shell
+pytest
+```
