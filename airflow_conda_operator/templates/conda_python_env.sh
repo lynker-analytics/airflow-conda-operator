@@ -11,6 +11,6 @@ test -d "$VIRTUAL_ENV" && \
 source "$VIRTUAL_ENV/bin/activate" && \
 deactivate
 
-# activate and start python
+# activate and start python (within that)
 source "{{ conda_root_prefix }}/bin/activate" "{{ conda_env }}" && \
-exec "$CONDA_PREFIX/bin/{{ interpreter_name }}" "$@"
+exec "{{ interpreter_name }}" "$@"
