@@ -1,14 +1,16 @@
+import copy
 import logging
 import os
-import tempfile
+import re
 import socket
-import copy
+import tempfile
 from typing import Any, Sequence
 
 from airflow.providers.standard.version_compat import AIRFLOW_V_3_0_PLUS
 
 if AIRFLOW_V_3_0_PLUS:
-    from airflow.providers.standard.operators.python import ExternalPythonOperator
+    from airflow.providers.standard.operators.python import \
+        ExternalPythonOperator
 else:
     from airflow.operators.python import ExternalPythonOperator  # type: ignore[no-redef]
 
@@ -114,7 +116,11 @@ class CondaPythonOperator(ExternalPythonOperator):
         return next(
             (
                 pkg["version"]
-                for pkg in conda.list_packages(ensure_conda_env(self.conda_env, conda))
+                for pkg in conda.list_packages(
+                    ensure_conda_env(self.conda_env, conda),
+                    regex=re.escape(pkg_name),
+                    full_name=True,
+                )
                 if pkg["name"] == pkg_name
             ),
             None,

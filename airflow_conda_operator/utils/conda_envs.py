@@ -253,18 +253,28 @@ class CondaSystem:
 
         return env_prefix
 
-    def list_packages(self, env_name: str) -> list[dict]:
+    def list_packages(self, env_name: str, regex=None, full_name=False) -> list[dict]:
         """
         List installed packages of an environment.
 
+        A regular expression can be specified to narrow the results.
+        The option `full-name` will limit filtering to a full match.
+        
         Pip-installed packages appear with `channel` set to `pypi`.
         """
+        filter_args = []
+        if full_name:
+            filter_args.append("--full-name")
+        if regex is not None:
+            filter_args.append(regex)
+
         try:
             return self.execute_with_conda_cli(
                 [
                     "list",
                     "--prefix",
                     self.find_env_prefix(env_name),
+                    *filter_args,
                 ],
             )
         except subprocess.CalledProcessError as e:
