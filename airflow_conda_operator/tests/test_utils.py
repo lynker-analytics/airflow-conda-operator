@@ -39,11 +39,21 @@ def test_cached_env():
 
     assert python_version.startswith("Python 3.13.")
 
+    assert any(
+        pkg["name"] == "python" and pkg["version"].startswith("3.13.")
+        for pkg in conda.list_packages(new_env)
+    )
+
     pandas_version = subprocess.check_output(
         [python_exe, "-c", "import pandas; print(pandas.__version__)"], text=True
     )
 
     assert pandas_version.startswith("2.3.")
+
+    assert any(
+        pkg["name"] == "pandas" and pkg["version"].startswith("2.3.")
+        for pkg in conda.list_packages(new_env)
+    )
 
 
 def test_cache_eviction(monkeypatch):

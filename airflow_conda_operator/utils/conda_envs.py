@@ -253,6 +253,24 @@ class CondaSystem:
 
         return env_prefix
 
+    def list_packages(self, env_name: str) -> list[dict]:
+        """
+        List installed packages of an environment.
+
+        Pip-installed packages appear with `channel` set to `pypi`.
+        """
+        try:
+            return self.execute_with_conda_cli(
+                [
+                    "list",
+                    "--prefix",
+                    self.find_env_prefix(env_name),
+                ],
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error("failed to list packages %s:\n%s", str(env_name), e.stderr)
+            raise
+
 
 def hash_env_def(env_def: dict) -> str:
     return hashlib.md5(json.dumps(env_def).encode()).hexdigest()
