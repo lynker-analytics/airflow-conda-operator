@@ -30,18 +30,12 @@ pip install git+ssh://git@github.com/lynker-analytics/airflow-conda-operator.git
 
 ## Task Example
 
-Create an environment with all requirements for the task/s:
-
-```bash
-mamba create -n satellite-data python rasterio
-```
-
 Use the operator in your Airflow DAG file:
 
 ```python3
 from airflow.decorators import task
 
-@task.conda(conda_env="satellite-data", expect_airflow=False)
+@task.conda(conda_env=["rasterio=1.4"], expect_airflow=False)
 def load_geotiffs(data_location):
     # IMPORTANT: all imports inside the function
     import rasterio
@@ -69,7 +63,7 @@ def load_geotiffs(data_location):
 CondaPythonOperator(
     task_id="load_geotiffs",
     op_args=["s3://bucket/data.tif"],
-    conda_env="satellite-data",
+    conda_env=["rasterio=1.4"],
     expect_airflow=False,
     python_callable=load_geotiffs
 )
@@ -77,29 +71,38 @@ CondaPythonOperator(
 
 ### Environment Specification
 
-If `conda_env` contains a dictionary, it will create (and cache)
+If `conda_env` contains a dictionary or list, it will create (and cache)
 the environment when and where (e.g. on a worker node) required.
 
-The above examples work with
+The above examples work with:
 
 ```python
 conda_env={
     "name": "satellite-data", 
     "dependencies": [
-        "python",
-        "rasterio",
+        "rasterio=1.4",
         ],
     }
 ```
 
-The dictionary requires "dependencies", optionally allows "name" and "channels",
-just as a conda environment definition file. If no name is specified, it will
-default to `airflow-conda`.
+A list can be used to specify the dependencies only, the name defaults to `airflow-conda`.
+
+A dictionary requires "dependencies", optionally allows "name"
+and "channels", just as a conda environment definition file. If no name is specified,
+it will default to `airflow-conda`.
+
+Pip dependencies can be specified by adding `{"pip": ["pkg1", ....]}` to the dependency
+list.
+
+An already created environment can be specified by name or absolute path
+e.g. `conda_env="satellite-data"` or `conda_env="/home/user/miniconda/envs/satellite-data"`.
 
 ### Environment Caching
 
-The environments are cached on the workers with an LRU cache.
-A maximum of 5 environments are kept for each environment name specified.
+
+The environments are cached on the workers with an LRU cache located in
+`$HOME/.cache/airflow-conda-operator-envs`.
+A maximum of 5 environments are kept separately for each environment name.
 
 ### Requirements
 
@@ -119,7 +122,7 @@ in the most straight forward way, but it does the trick.
 
 ### Development
 
-Unit test based on pytest.
+The tests are based on `pytest`.
 
 ```shell
 pytest

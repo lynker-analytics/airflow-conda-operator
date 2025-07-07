@@ -1,10 +1,10 @@
 [project]
 name = "airflow-conda-operator"
-version = "0.3.0"
+version = "0.4.0"
 authors = [
     {name="Achim Gädke", email="Achim.Gaedke@lynker-analytics.com"},
 ]
-description = "Conda/Mamba Python Operator"
+description = "Conda/Mamba Python Operator for Airflow"
 readme = "README.md"
 dependencies = [
     "apache-airflow>=2.10.0",
