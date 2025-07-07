@@ -109,20 +109,66 @@ class CondaPythonOperator(ExternalPythonOperator):
         finally:
             os.unlink(python_stub)
 
+    def _get_pkg_version_from_target_env(self, pkg_name: str) -> str | None:
+        conda = CondaSystem()
+        return next(
+            (
+                pkg["version"]
+                for pkg in conda.list_packages(ensure_conda_env(self.conda_env, conda))
+                if pkg["name"] == pkg_name
+            ),
+            None,
+        )
+
     def _is_pendulum_installed_in_target_env(self) -> bool:
-        # create python stub (might trigger environment creation) and set to self.python
-        python, self.python = self.python, self._create_python_stub()
+        # edited copy from ExternalPythonOperator
+        # assuming the pendulum package is installed via conda or pip
         try:
-            return super()._is_pendulum_installed_in_target_env()
-        finally:
-            os.unlink(self.python)
-            self.python = python
+            return self._get_pkg_version_from_target_env("pendulum") is not None
+        except Exception as e:
+            if self.expect_pendulum:
+                self.log.warning(
+                    "When checking for Pendulum installed in conda environment got %s",
+                    e,
+                )
+                self.log.warning(
+                    "Pendulum is not properly installed in the conda environment %s"
+                    "Pendulum context keys will not be available. "
+                    "Please Install Pendulum or Airflow in your conda environment to access them.",
+                    self.conda_env,
+                )
+            return False
 
     def _get_airflow_version_from_target_env(self) -> str | None:
-        # create python stub (might trigger environment creation) and set to self.python
-        python, self.python = self.python, self._create_python_stub()
+        # edited copy from ExternalPythonOperator
+        # assuming the airflow package is installed via conda or pip
+
+        from airflow import __version__ as airflow_version
+        from airflow.exceptions import AirflowConfigException
+
         try:
-            return super()._get_airflow_version_from_target_env()
-        finally:
-            os.unlink(self.python)
-            self.python = python
+            target_airflow_version = self._get_pkg_version_from_target_env(
+                "apache-airflow"
+            )
+            if target_airflow_version != airflow_version:
+                raise AirflowConfigException(
+                    f"The version of Airflow installed for the {self.python} "
+                    f"({target_airflow_version}) is different than the runtime Airflow version: "
+                    f"{airflow_version}. Make sure your environment has the same Airflow version "
+                    f"installed as the Airflow runtime."
+                )
+            return target_airflow_version
+        except Exception as e:
+            if self.expect_airflow:
+                self.log.warning(
+                    "When checking for Airflow installed in virtual environment got %s",
+                    e,
+                )
+                self.log.warning(
+                    "This means that Airflow is not properly installed by %s. "
+                    "Airflow context keys will not be available. "
+                    "Please Install Airflow %s in your environment to access them.",
+                    self.python,
+                    airflow_version,
+                )
+            return None
