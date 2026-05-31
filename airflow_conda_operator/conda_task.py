@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Callable
 
-from airflow.providers.standard.version_compat import AIRFLOW_V_3_0_PLUS
+from .version_compat import AIRFLOW_V_3_0_PLUS
 
 if AIRFLOW_V_3_0_PLUS:
     from airflow.sdk.bases.decorator import task_decorator_factory
