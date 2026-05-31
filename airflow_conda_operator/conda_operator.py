@@ -6,11 +6,10 @@ import socket
 import tempfile
 from typing import Any, Sequence
 
-from airflow.providers.standard.version_compat import AIRFLOW_V_3_0_PLUS
+from .version_compat import AIRFLOW_V_3_0_PLUS
 
 if AIRFLOW_V_3_0_PLUS:
-    from airflow.providers.standard.operators.python import \
-        ExternalPythonOperator
+    from airflow.providers.standard.operators.python import ExternalPythonOperator
 else:
     from airflow.operators.python import ExternalPythonOperator  # type: ignore[no-redef]
 

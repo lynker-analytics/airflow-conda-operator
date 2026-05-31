@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Callable
 
-from airflow.providers.standard.version_compat import AIRFLOW_V_3_0_PLUS
+from .version_compat import AIRFLOW_V_3_0_PLUS
 
 if AIRFLOW_V_3_0_PLUS:
     from airflow.sdk.bases.decorator import task_decorator_factory
@@ -37,26 +37,3 @@ def conda_task(
         decorated_operator_class=_CondaPythonDecoratedOperator,
         **kwargs,
     )
-
-
-def get_provider_info():
-    return {
-        "package-name": "airflow-conda-operator",
-        "name": "Conda",
-        "description": "Conda/Mamba environment integration",
-        "integrations": [
-            {"integration-name": "Conda"},
-        ],
-        "task-decorators": [
-            {
-                "name": "conda",
-                "class-name": "airflow_conda_operator.conda_task.conda_task",
-            }
-        ],
-        "operators": [
-            {
-                "integration-name": "Conda",
-                "python-modules": ["airflow_conda_operator.conda_operator"],
-            }
-        ],
-    }

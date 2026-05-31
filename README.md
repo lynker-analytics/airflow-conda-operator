@@ -49,7 +49,7 @@ def load_geotiffs(data_location):
 Use the operator in your Airflow DAG file:
 
 ```python3
-from airflow_conda_operator import CondaPythonOperator
+from airflow_conda_operator.conda_operator import CondaPythonOperator
 
 # to be executed in the environment satellite-data
 def load_geotiffs(data_location):

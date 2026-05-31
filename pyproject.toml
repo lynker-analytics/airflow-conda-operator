@@ -21,7 +21,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project.entry-points."apache_airflow_provider"]
-provider_info = "airflow_conda_operator.conda_task:get_provider_info"
+provider_info = "airflow_conda_operator.provider_info:get_provider_info"
 
 [tool.setuptools.package-data]
 airflow_conda_operator = ["templates/*.sh",]
