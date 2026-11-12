@@ -1,9 +1,16 @@
+import pathlib
+import shutil
 import subprocess
 
 import pytest
 
 import airflow_conda_operator.utils.conda_envs
-from airflow_conda_operator.utils.conda_envs import CondaSystem, ensure_conda_env
+from airflow_conda_operator.utils.conda_envs import (
+    ENV_COMPLETE_MARKER,
+    CondaEnvCreationError,
+    CondaSystem,
+    ensure_conda_env,
+)
 
 # all right - how to call the tests?
 
@@ -94,5 +101,61 @@ def test_cache_eviction(monkeypatch):
 def test_failed_env_creation():
     conda = CondaSystem()
 
-    with pytest.raises(subprocess.CalledProcessError):
+    with pytest.raises(CondaEnvCreationError) as error:
         conda.create_env({"dependencies": ["python<1"]})
+    # the reason is reported by conda/mamba on stdout (--json), not stderr
+    assert "python" in str(error.value) and "no error message" not in str(error.value)
+    assert isinstance(error.value.__cause__, subprocess.CalledProcessError)
+
+
+@pytest.fixture
+def env_cache(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        airflow_conda_operator.utils.conda_envs,
+        "AIRFLOW_CONDA_OPERATOR_ENV_CACHE",
+        tmp_path,
+    )
+    return tmp_path
+
+
+def test_failed_cached_env_creation_leaves_nothing_behind(env_cache, monkeypatch):
+    conda = CondaSystem()
+    env_def = {"name": "test-failing", "dependencies": ["python"]}
+
+    def fail_after_creating_prefix(arguments):
+        # conda/mamba create the prefix directory before failing (e.g. download error)
+        prefix = pathlib.Path(arguments[arguments.index("--prefix") + 1])
+        (prefix / "conda-meta").mkdir(parents=True)
+        raise subprocess.CalledProcessError(
+            1,
+            arguments,
+            output='{"success": false, "log_history": [{"level": "error", '
+            '"message": "Download error: connection reset"}]}',
+            stderr="",
+        )
+
+    monkeypatch.setattr(conda, "execute_with_conda_cli", fail_after_creating_prefix)
+
+    with pytest.raises(CondaEnvCreationError, match="connection reset"):
+        ensure_conda_env(env_def, conda)
+    assert not any(path.is_dir() for path in env_cache.iterdir())
+
+    # a later attempt must not pick up a broken environment either
+    with pytest.raises(CondaEnvCreationError):
+        ensure_conda_env(env_def, conda)
+
+
+def test_incomplete_cached_env_is_recreated(env_cache):
+    conda = CondaSystem()
+    env_def = {"name": "test-incomplete", "dependencies": ["python"]}
+
+    env_path = ensure_conda_env(env_def, conda)
+    assert (env_path / ENV_COMPLETE_MARKER).is_file()
+
+    # simulate an interrupted creation: directory without python and marker
+    shutil.rmtree(env_path)
+    (env_path / "conda-meta").mkdir(parents=True)
+
+    assert ensure_conda_env(env_def, conda) == env_path
+    assert (env_path / "bin" / "python").is_file()
+    assert (env_path / ENV_COMPLETE_MARKER).is_file()

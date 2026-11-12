@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import pathlib
+import shutil
 import socket
 import subprocess
 import tempfile
@@ -12,6 +13,39 @@ import typing
 import yaml
 
 logger = logging.getLogger(__name__)
+
+
+class CondaEnvCreationError(RuntimeError):
+    """Creating a conda/mamba environment failed."""
+
+
+def _cli_error_message(stdout: str | None, stderr: str | None) -> str:
+    """
+    Extract the error reason from a failed conda/mamba CLI call.
+
+    With `--json` the reason is reported on stdout (mamba: `log_history`,
+    conda: `message`/`error`), stderr is often empty.
+    """
+    messages = []
+    try:
+        result = json.loads(stdout or "")
+    except json.JSONDecodeError:
+        result = None
+    if isinstance(result, dict):
+        messages += [
+            entry["message"]
+            for entry in result.get("log_history", [])
+            if entry.get("level") in ("error", "critical") and entry.get("message")
+        ]
+        messages += [
+            str(result[key]) for key in ("message", "error") if result.get(key)
+        ]
+        messages += [f"solver problem: {p}" for p in result.get("solver_problems", [])]
+    elif stdout and stdout.strip():
+        messages.append(stdout.strip())
+    if stderr and stderr.strip():
+        messages.append(stderr.strip())
+    return "\n".join(dict.fromkeys(messages)) or "no error message reported"
 
 
 class CondaSystem:
@@ -129,6 +163,9 @@ class CondaSystem:
                 env_name = env_def.get("name")
                 env_location_args = ["--prefix", str(conda_env_dir / env_name)]
 
+            env_prefix = (
+                conda_env_dir / env_name if conda_env_dir else env_def.get("prefix")
+            )
             try:
                 install_result = self.execute_with_conda_cli(
                     [
@@ -141,10 +178,14 @@ class CondaSystem:
                     ],
                 )
             except subprocess.CalledProcessError as e:
+                self._remove_partial_env(env_prefix)
+                message = _cli_error_message(e.stdout, e.stderr)
                 logger.error(
-                    "failed to create environment %s:\n%s", str(env_def), e.stderr
+                    "failed to create environment %s:\n%s", str(env_def), message
                 )
-                raise
+                raise CondaEnvCreationError(
+                    f"failed to create environment {env_def}: {message}"
+                ) from e
 
         if logger.getEffectiveLevel() <= logging.DEBUG:
             logger.debug(
@@ -152,14 +193,15 @@ class CondaSystem:
                 json.dumps(install_result, indent=2),
             )
 
-        if not install_result["success"]:
+        if not install_result.get("success"):
+            self._remove_partial_env(env_prefix)
+            message = _cli_error_message(json.dumps(install_result), None)
             logger.error(
-                "failed to create environment %s:\n%s",
-                str(env_def),
-                json.dumps(install_result, indent=2),
+                "failed to create environment %s:\n%s", str(env_def), message
             )
-            # todo: more suitable exception
-            assert install_result["success"], "no success"
+            raise CondaEnvCreationError(
+                f"failed to create environment {env_def}: {message}"
+            )
 
         env_prefix = pathlib.Path(install_result["prefix"])
         assert env_prefix.is_dir()
@@ -169,6 +211,19 @@ class CondaSystem:
         logger.debug("environment details:\n%s ", json.dumps(install_result, indent=2))
 
         return env_prefix
+
+    @staticmethod
+    def _remove_partial_env(env_prefix: str | pathlib.Path | None) -> None:
+        """
+        Remove what a failed creation left behind, so that the directory is not
+        mistaken for a usable environment later on.
+        """
+        if env_prefix is None:
+            return  # created by name in conda's default location: leave it to conda
+        env_prefix = pathlib.Path(env_prefix)
+        if env_prefix.exists():
+            logger.warning("removing partially created environment %s", env_prefix)
+            shutil.rmtree(env_prefix, ignore_errors=True)
 
     def delete_env(
         self,
@@ -292,6 +347,12 @@ AIRFLOW_CONDA_OPERATOR_ENV_CACHE = (
 AIRFLOW_CONDA_OPERATOR_ENV_CACHE.mkdir(parents=True, exist_ok=True)
 # max size per env name
 AIRFLOW_CONDA_OPERATOR_ENV_CACHE_MAXSIZE = 5
+# written into a cached environment once its creation succeeded
+ENV_COMPLETE_MARKER = ".airflow-conda-operator-complete"
+
+
+def is_complete_env(env_path: pathlib.Path) -> bool:
+    return (env_path / ENV_COMPLETE_MARKER).is_file()
 
 
 def ensure_conda_env(env_def: dict | str, conda: CondaSystem) -> pathlib.Path:
@@ -354,6 +415,14 @@ def ensure_conda_env(env_def: dict | str, conda: CondaSystem) -> pathlib.Path:
         fcntl.flock(f, fcntl.LOCK_EX)
 
         # might be there now?
+        if cached_env_path.is_dir() and not is_complete_env(cached_env_path):
+            # left over from an interrupted or failed creation (or created by an
+            # older version of this package without completion marker)
+            logger.warning(
+                "environment %s is incomplete, recreating it", cached_env_path
+            )
+            shutil.rmtree(cached_env_path)
+
         if not cached_env_path.is_dir():
             logger.info(
                 "creating env %s on %s with definition: %s",
@@ -366,4 +435,5 @@ def ensure_conda_env(env_def: dict | str, conda: CondaSystem) -> pathlib.Path:
                 conda_env_dir=AIRFLOW_CONDA_OPERATOR_ENV_CACHE,
             )
             assert new_env_path == cached_env_path
+            (cached_env_path / ENV_COMPLETE_MARKER).touch()
         return cached_env_path
