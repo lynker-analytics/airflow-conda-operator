@@ -15,7 +15,7 @@ else:
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
-from .utils.conda_envs import CondaSystem, ensure_conda_env
+from .utils.conda_envs import CondaEnvCreationError, CondaSystem, ensure_conda_env
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +130,8 @@ class CondaPythonOperator(ExternalPythonOperator):
         # assuming the pendulum package is installed via conda or pip
         try:
             return self._get_pkg_version_from_target_env("pendulum") is not None
+        except CondaEnvCreationError:
+            raise
         except Exception as e:
             if self.expect_pendulum:
                 self.log.warning(
@@ -163,6 +165,8 @@ class CondaPythonOperator(ExternalPythonOperator):
                     f"installed as the Airflow runtime."
                 )
             return target_airflow_version
+        except CondaEnvCreationError:
+            raise
         except Exception as e:
             if self.expect_airflow:
                 self.log.warning(

@@ -61,3 +61,29 @@ def test_conda_operator_w_name():
 
     # Assert something related to tasks results.
     assert ti.xcom_pull() == 1
+
+
+def test_failed_env_creation_is_not_hidden_by_version_checks(monkeypatch):
+    # the optional pendulum/airflow checks create the environment first; a failure
+    # there must fail the task instead of continuing with a broken environment
+    import pytest
+
+    import airflow_conda_operator.conda_operator as conda_operator
+    from airflow_conda_operator.utils.conda_envs import CondaEnvCreationError
+
+    def failing_ensure_conda_env(env_def, conda):
+        raise CondaEnvCreationError("download failed")
+
+    monkeypatch.setattr(conda_operator, "ensure_conda_env", failing_ensure_conda_env)
+
+    operator = CondaPythonOperator(
+        conda_env={"dependencies": ["python"]},
+        python_callable=python_prog,
+        task_id="conda_operator_failing_env",
+        expect_airflow=False,
+        expect_pendulum=False,
+    )
+    with pytest.raises(CondaEnvCreationError):
+        operator._is_pendulum_installed_in_target_env()
+    with pytest.raises(CondaEnvCreationError):
+        operator._get_airflow_version_from_target_env()
