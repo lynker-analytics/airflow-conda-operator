@@ -6,11 +6,13 @@ authors = [
 ]
 description = "Conda/Mamba Python Operator for Airflow"
 readme = "README.md"
+requires-python = ">=3.12"
 dependencies = [
     "apache-airflow>=2.10.0",
     "apache-airflow-task-sdk",
     "apache-airflow-providers-standard>=1.2.0",
     "jinja2",
+    "pyyaml",
 ]
 
 [project.urls]
