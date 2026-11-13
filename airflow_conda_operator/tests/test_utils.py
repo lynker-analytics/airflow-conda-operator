@@ -159,3 +159,20 @@ def test_incomplete_cached_env_is_recreated(env_cache):
     assert ensure_conda_env(env_def, conda) == env_path
     assert (env_path / "bin" / "python").is_file()
     assert (env_path / ENV_COMPLETE_MARKER).is_file()
+
+
+@pytest.mark.parametrize(
+    "cli_output",
+    [
+        # conda
+        [{"name": "python", "version": "3.13.1"}],
+        # mamba >= 2
+        {"log_history": [], "packages": [{"name": "python", "version": "3.13.1"}]},
+    ],
+)
+def test_list_packages_output_formats(cli_output, monkeypatch, tmp_path):
+    conda = CondaSystem()
+    monkeypatch.setattr(conda, "find_env_prefix", lambda env_name: tmp_path)
+    monkeypatch.setattr(conda, "execute_with_conda_cli", lambda arguments: cli_output)
+
+    assert conda.list_packages("some-env") == [{"name": "python", "version": "3.13.1"}]
