@@ -87,3 +87,27 @@ def test_failed_env_creation_is_not_hidden_by_version_checks(monkeypatch):
         operator._is_pendulum_installed_in_target_env()
     with pytest.raises(CondaEnvCreationError):
         operator._get_airflow_version_from_target_env()
+
+
+def test_pkg_version_lookup_with_mamba2_list_format(monkeypatch):
+    import airflow_conda_operator.conda_operator as conda_operator
+    from airflow_conda_operator.utils.conda_envs import CondaSystem
+
+    monkeypatch.setattr(conda_operator, "ensure_conda_env", lambda env_def, conda: "env")
+    monkeypatch.setattr(CondaSystem, "find_env_prefix", lambda self, env_name: env_name)
+    monkeypatch.setattr(
+        CondaSystem,
+        "execute_with_conda_cli",
+        lambda self, arguments: {
+            "log_history": [],
+            "packages": [{"name": "pendulum", "version": "3.1.0"}],
+        },
+    )
+    operator = CondaPythonOperator(
+        conda_env={"dependencies": ["python", "pendulum"]},
+        python_callable=python_prog,
+        task_id="conda_operator_mamba2_list",
+        expect_airflow=False,
+    )
+    assert operator._get_pkg_version_from_target_env("pendulum") == "3.1.0"
+    assert operator._is_pendulum_installed_in_target_env()

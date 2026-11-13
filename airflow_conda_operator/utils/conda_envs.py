@@ -324,7 +324,7 @@ class CondaSystem:
             filter_args.append(regex)
 
         try:
-            return self.execute_with_conda_cli(
+            result = self.execute_with_conda_cli(
                 [
                     "list",
                     "--prefix",
@@ -333,8 +333,19 @@ class CondaSystem:
                 ],
             )
         except subprocess.CalledProcessError as e:
-            logger.error("failed to list packages %s:\n%s", str(env_name), e.stderr)
+            logger.error(
+                "failed to list packages %s:\n%s",
+                str(env_name),
+                _cli_error_message(e.stdout, e.stderr),
+            )
             raise
+
+        # conda returns a plain list, mamba >= 2 an object: {"packages": [...], ...}
+        if isinstance(result, dict):
+            result = result.get("packages")
+        if not isinstance(result, list):
+            raise ValueError(f"unexpected output of `{self.conda_exe.name} list --json`")
+        return result
 
 
 def hash_env_def(env_def: dict) -> str:
