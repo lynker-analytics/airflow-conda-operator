@@ -29,12 +29,11 @@ class CondaVersionError(RuntimeError):
 # Determined by running every CondaSystem operation against conda-forge releases:
 # - conda < 24.9: `env remove --json` prints nothing; 24.1/24.3 also ignore `--json`
 #   for `env create` with pip dependencies.
-# - mamba 1 delegates `env` commands to conda (checked as well), and needs >= 1.5.9
-#   to be installable with conda >= 24.9.
+# - mamba 1 is not supported (legacy, delegates `env` commands to conda).
 # - mamba 2.0.0 lacks `list --full-name`, 2.0.1/2.0.2 omit pip packages in `list`.
 SUPPORTED_VERSIONS = {
     "conda": [((24, 9), None)],
-    "mamba": [((1, 5, 9), (2,)), ((2, 0, 3), None)],
+    "mamba": [((2, 0, 3), None)],
 }
 
 
@@ -47,8 +46,8 @@ def parse_cli_versions(version_output: str) -> dict[str, tuple[int, ...]]:
     Parse `conda --version` / `mamba --version` output into {tool: version}.
 
     conda:    "conda 26.7.1"
-    mamba 1:  "mamba 1.5.8\nconda 24.7.1" (mamba 1 delegates to conda)
     mamba 2:  "2.9.0"
+    mamba 1:  "mamba 1.5.8\nconda 24.7.1" (parsed to reject it with a clear message)
     """
     versions = {}
     for line in version_output.strip().splitlines():
@@ -89,8 +88,8 @@ def describe_supported_versions(tool: str) -> str:
 
 def check_cli_version(executable: pathlib.Path) -> dict[str, tuple[int, ...]]:
     """
-    Raise CondaVersionError unless the conda/mamba executable (and, for mamba 1, the
-    conda it delegates to) has a version listed in SUPPORTED_VERSIONS.
+    Raise CondaVersionError unless the conda/mamba executable has a version listed in
+    SUPPORTED_VERSIONS.
     """
     versions = _cli_versions(pathlib.Path(executable))
     unsupported = [

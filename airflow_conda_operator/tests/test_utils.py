@@ -211,8 +211,7 @@ def _fake_executable(tmp_path, name, version_output):
         ("conda", (24, 7, 1), False),
         ("conda", (24, 9, 0), True),
         ("conda", (26, 7, 1), True),
-        ("mamba", (1, 5, 8), False),
-        ("mamba", (1, 5, 9), True),
+        ("mamba", (1, 5, 12), False),
         ("mamba", (2, 0, 0), False),
         ("mamba", (2, 0, 2), False),
         ("mamba", (2, 0, 3), True),
@@ -231,15 +230,10 @@ def test_check_cli_version_too_old(tmp_path):
         check_cli_version(_fake_executable(tmp_path, "mamba", "2.0.0\\n"))
 
 
-def test_check_cli_version_mamba1_checks_bundled_conda(tmp_path):
-    mamba = _fake_executable(tmp_path, "mamba", "mamba 1.5.8\\nconda 24.7.1\\n")
-    with pytest.raises(CondaVersionError, match="mamba 1.5.8.*conda 24.7.1"):
+def test_check_cli_version_rejects_mamba1(tmp_path):
+    mamba = _fake_executable(tmp_path, "mamba", "mamba 1.5.12\\nconda 24.11.3\\n")
+    with pytest.raises(CondaVersionError, match=r"mamba 1\.5\.12 \(supported: >=2\.0\.3\)"):
         check_cli_version(mamba)
-    ok = tmp_path / "ok"
-    ok.mkdir()
-    assert check_cli_version(
-        _fake_executable(ok, "mamba", "mamba 1.5.12\\nconda 24.11.3\\n")
-    ) == {"mamba": (1, 5, 12), "conda": (24, 11, 3)}
 
 
 def test_check_cli_version_unknown(tmp_path):
