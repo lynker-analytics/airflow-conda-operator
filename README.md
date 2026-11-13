@@ -106,7 +106,19 @@ A maximum of 5 environments are kept separately for each environment name.
 
 ### Requirements
 
-Works with `conda` or `mamba`, requires `bash`.
+Requires Python >= 3.12 and `bash`, and one of these conda/mamba installations
+(`mamba` is used if present in the installation's root prefix):
+
+| tool | supported versions | reason |
+|------|--------------------|--------|
+| conda | >= 24.9 | older `conda env remove --json` produces no output, 24.1/24.3 ignore `--json` for `env create` with pip dependencies |
+| mamba | >= 2.0.3 | 2.0.0 lacks `list --full-name`, 2.0.1/2.0.2 omit pip-installed packages from `list` |
+
+The versions are checked when the operator accesses the installation; an unsupported
+version raises a `CondaVersionError` asking to update it, e.g. with
+`mamba update -n base conda mamba`.
+The root prefix needs the `activate` script of the conda package (`<root>/bin/activate`),
+as in Miniforge installations. mamba 1 is not supported.
 
 Some OS distributions do not allow executable files in `/tmp`.
 If you experience `PermissionDenied` errors using the operator,

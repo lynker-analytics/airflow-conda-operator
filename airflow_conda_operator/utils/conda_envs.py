@@ -1,9 +1,11 @@
 import fcntl
+import functools
 import hashlib
 import json
 import logging
 import os
 import pathlib
+import re
 import shutil
 import socket
 import subprocess
@@ -19,6 +21,115 @@ class CondaEnvCreationError(RuntimeError):
     """Creating a conda/mamba environment failed."""
 
 
+class CondaVersionError(RuntimeError):
+    """The conda/mamba installation is too old (or its version is unknown)."""
+
+
+# Versions supporting the CLI used here, as [lowest, highest) ranges (None: open end).
+# Determined by running every CondaSystem operation against conda-forge releases:
+# - conda < 24.9: `env remove --json` prints nothing; 24.1/24.3 also ignore `--json`
+#   for `env create` with pip dependencies.
+# - mamba 1 is not supported (legacy, delegates `env` commands to conda).
+# - mamba 2.0.0 lacks `list --full-name`, 2.0.1/2.0.2 omit pip packages in `list`.
+SUPPORTED_VERSIONS = {
+    "conda": [((24, 9), None)],
+    "mamba": [((2, 0, 3), None)],
+}
+
+
+def _format_version(version: tuple[int, ...]) -> str:
+    return ".".join(map(str, version))
+
+
+def parse_cli_versions(version_output: str) -> dict[str, tuple[int, ...]]:
+    """
+    Parse `conda --version` / `mamba --version` output into {tool: version}.
+
+    conda:    "conda 26.7.1"
+    mamba 2:  "2.9.0"
+    mamba 1:  "mamba 1.5.8\nconda 24.7.1" (parsed to reject it with a clear message)
+    """
+    versions = {}
+    for line in version_output.strip().splitlines():
+        match = re.fullmatch(r"\s*(?:(conda|mamba)\s+)?(\d+(?:\.\d+)+)\S*\s*", line)
+        if match:
+            tool = match.group(1) or "mamba"  # mamba 2 prints the bare version
+            versions[tool] = tuple(int(part) for part in match.group(2).split("."))
+    return versions
+
+
+@functools.cache
+def _cli_versions(executable: pathlib.Path) -> dict[str, tuple[int, ...]]:
+    result = subprocess.run(
+        [str(executable), "--version"], text=True, capture_output=True, check=True
+    )
+    versions = parse_cli_versions(result.stdout)
+    if executable.name not in versions:
+        raise CondaVersionError(
+            f"cannot determine the version of {executable} from {result.stdout!r}"
+        )
+    return versions
+
+
+def is_supported_version(tool: str, version: tuple[int, ...]) -> bool:
+    return any(
+        lowest <= version and (highest is None or version < highest)
+        for lowest, highest in SUPPORTED_VERSIONS[tool]
+    )
+
+
+def describe_supported_versions(tool: str) -> str:
+    return " or ".join(
+        f">={_format_version(lowest)}"
+        + (f",<{_format_version(highest)}" if highest is not None else "")
+        for lowest, highest in SUPPORTED_VERSIONS[tool]
+    )
+
+
+def check_cli_version(executable: pathlib.Path) -> dict[str, tuple[int, ...]]:
+    """
+    Raise CondaVersionError unless the conda/mamba executable has a version listed in
+    SUPPORTED_VERSIONS.
+    """
+    versions = _cli_versions(pathlib.Path(executable))
+    unsupported = [
+        f"{tool} {_format_version(version)} (supported: "
+        f"{describe_supported_versions(tool)})"
+        for tool, version in versions.items()
+        if not is_supported_version(tool, version)
+    ]
+    if unsupported:
+        packages = "conda mamba" if "mamba" in versions else "conda"
+        raise CondaVersionError(
+            f"{executable}: unsupported {', '.join(unsupported)}; please update the "
+            f"installation, e.g. `{executable} update -n base {packages}`"
+        )
+    return versions
+
+
+def parse_cli_json(stdout: str) -> dict | list:
+    """
+    Parse the `--json` output of conda/mamba.
+
+    Some commands print plain text before the JSON document even with `--json`,
+    e.g. `conda env create` with pip dependencies (pip's progress output), so the
+    JSON document is searched for at the start of a line if the output is not
+    pure JSON.
+    """
+    try:
+        return json.loads(stdout)
+    except json.JSONDecodeError as error:
+        decoder = json.JSONDecoder()
+        for match in re.finditer(r"^[\[{]", stdout, re.MULTILINE):
+            try:
+                result, end = decoder.raw_decode(stdout, match.start())
+            except json.JSONDecodeError:
+                continue
+            if not stdout[end:].strip():
+                return result
+        raise error
+
+
 def _cli_error_message(stdout: str | None, stderr: str | None) -> str:
     """
     Extract the error reason from a failed conda/mamba CLI call.
@@ -28,7 +139,7 @@ def _cli_error_message(stdout: str | None, stderr: str | None) -> str:
     """
     messages = []
     try:
-        result = json.loads(stdout or "")
+        result = parse_cli_json(stdout or "")
     except json.JSONDecodeError:
         result = None
     if isinstance(result, dict):
@@ -109,6 +220,7 @@ class CondaSystem:
             raise ValueError(f"`activate` script not found in {self.conda_root}")
 
         self.conda_exe = self.find_conda_executable(self.conda_root)
+        self.versions = check_cli_version(self.conda_exe)
 
     def execute_with_conda_cli(self, arguments: list[str]) -> dict:
         # maybe set conda variables to environment?
@@ -130,7 +242,7 @@ class CondaSystem:
                 cli_result.stderr,
             )
 
-        return json.loads(cli_result.stdout)
+        return parse_cli_json(cli_result.stdout)
 
     def create_env(
         self,

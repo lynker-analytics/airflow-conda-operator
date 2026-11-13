@@ -1,3 +1,4 @@
+import json
 import pathlib
 import shutil
 import subprocess
@@ -9,7 +10,12 @@ from airflow_conda_operator.utils.conda_envs import (
     ENV_COMPLETE_MARKER,
     CondaEnvCreationError,
     CondaSystem,
+    CondaVersionError,
+    check_cli_version,
+    is_supported_version,
     ensure_conda_env,
+    parse_cli_json,
+    parse_cli_versions,
 )
 
 # all right - how to call the tests?
@@ -176,3 +182,88 @@ def test_list_packages_output_formats(cli_output, monkeypatch, tmp_path):
     monkeypatch.setattr(conda, "execute_with_conda_cli", lambda arguments: cli_output)
 
     assert conda.list_packages("some-env") == [{"name": "python", "version": "3.13.1"}]
+
+
+@pytest.mark.parametrize(
+    "output, expected",
+    [
+        ("conda 26.7.1\n", {"conda": (26, 7, 1)}),
+        ("mamba 1.5.8\nconda 24.7.1\n", {"mamba": (1, 5, 8), "conda": (24, 7, 1)}),
+        ("2.9.0\n", {"mamba": (2, 9, 0)}),
+        ("conda 25.1.0.post12+gabcdef\n", {"conda": (25, 1, 0)}),
+        ("something else\n", {}),
+    ],
+)
+def test_parse_cli_versions(output, expected):
+    assert parse_cli_versions(output) == expected
+
+
+def _fake_executable(tmp_path, name, version_output):
+    executable = tmp_path / name
+    executable.write_text(f"#!/bin/sh\nprintf '{version_output}'\n")
+    executable.chmod(0o755)
+    return executable
+
+
+@pytest.mark.parametrize(
+    "tool, version, supported",
+    [
+        ("conda", (24, 7, 1), False),
+        ("conda", (24, 9, 0), True),
+        ("conda", (26, 7, 1), True),
+        ("mamba", (1, 5, 12), False),
+        ("mamba", (2, 0, 0), False),
+        ("mamba", (2, 0, 2), False),
+        ("mamba", (2, 0, 3), True),
+        ("mamba", (2, 9, 0), True),
+    ],
+)
+def test_supported_versions(tool, version, supported):
+    assert is_supported_version(tool, version) == supported
+
+
+def test_check_cli_version_too_old(tmp_path):
+    old_conda = _fake_executable(tmp_path, "conda", "conda 24.7.1\\n")
+    with pytest.raises(CondaVersionError, match=r"conda 24\.7\.1 \(supported: >=24\.9\)"):
+        check_cli_version(old_conda)
+    with pytest.raises(CondaVersionError, match=r"mamba 2\.0\.0 .*>=2\.0\.3"):
+        check_cli_version(_fake_executable(tmp_path, "mamba", "2.0.0\\n"))
+
+
+def test_check_cli_version_rejects_mamba1(tmp_path):
+    mamba = _fake_executable(tmp_path, "mamba", "mamba 1.5.12\\nconda 24.11.3\\n")
+    with pytest.raises(CondaVersionError, match=r"mamba 1\.5\.12 \(supported: >=2\.0\.3\)"):
+        check_cli_version(mamba)
+
+
+def test_check_cli_version_unknown(tmp_path):
+    with pytest.raises(CondaVersionError, match="cannot determine"):
+        check_cli_version(_fake_executable(tmp_path, "mamba", "who knows\\n"))
+
+
+def test_installed_version_is_supported():
+    versions = CondaSystem().versions
+    assert all(is_supported_version(tool, version) for tool, version in versions.items())
+
+
+def test_parse_cli_json_with_leading_text():
+    # `conda env create --json` with pip dependencies prints pip's output first
+    stdout = (
+        "Warning: you have pip-installed dependencies in your environment file\n"
+        "Installing pip dependencies: ...working... Ran pip subprocess with arguments:\n"
+        "['python', '-m', 'pip', 'install', '-U', '-r', 'condaenv.txt']\n"
+        "Pip subprocess output:\nSuccessfully installed six-1.17.0\n\ndone\n"
+        '{\n  "prefix": "/envs/x",\n  "success": true\n}\n'
+    )
+    assert parse_cli_json(stdout) == {"prefix": "/envs/x", "success": True}
+    assert parse_cli_json('[{"name": "python"}]') == [{"name": "python"}]
+    with pytest.raises(json.JSONDecodeError):
+        parse_cli_json("no json here\n")
+
+
+def test_conda_env_with_pip_dependencies(env_cache):
+    conda = CondaSystem()
+    env_path = ensure_conda_env(
+        {"name": "test-pip", "dependencies": ["python", "pip", {"pip": ["six"]}]}, conda
+    )
+    assert any(pkg["name"] == "six" for pkg in conda.list_packages(str(env_path)))
